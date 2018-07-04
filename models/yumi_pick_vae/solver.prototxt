@@ -1,0 +1,11 @@
+net: "models/yumi_pick_vae/train_5d.prototxt" # remember to also modify snapshots
+base_lr: 0.002
+lr_policy: "step"
+gamma: 0.5
+stepsize: 250000
+display: 10000
+max_iter: 1200000
+weight_decay: 0.0005
+snapshot: 250000
+snapshot_prefix: "models/yumi_pick_vae/snapshots/5d_vae"
+solver_mode: GPU

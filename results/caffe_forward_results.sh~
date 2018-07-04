@@ -1,0 +1,10 @@
+#!/bin/bash
+root_directory=/home/ali/Codes/Caffe/results
+
+rm -f -r $root_directory$/caffe_forward
+scp -r ali@130.237.218.128:~/codes/KTH/caffe/results/caffe_forward $root_directory
+
+cd "/home/ali/Codes/Utilities/opencv_tools"
+./overlay_features ~/Codes/Caffe/results/caffe_forward o_00_ch_00.jpg 32 o_03_ch_
+#./overlay_features "~/Codes/Caffe/results/caffe_forward" "o_00_ch_00.jpg" "32" "o_03_ch_"
+

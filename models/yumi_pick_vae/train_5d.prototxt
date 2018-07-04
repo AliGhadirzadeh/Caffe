@@ -1,0 +1,217 @@
+name: "ActionVariationalAutoencoder"
+layer {
+   name: "data" type: "HDF5Data" top: "trajs"
+   include { phase: TRAIN }
+   hdf5_data_param {source: "models/yumi_pick_vae/data/traindata.txt" batch_size: 50}
+}
+layer {
+  name: "data"  type: "Input"  top: "trajs"
+  input_param {shape: { dim: 1 dim: 1 dim: 1 dim: 539 } }
+  include {phase: TEST}
+}
+layer {
+  name: "encode1"   type: "InnerProduct"  bottom: "trajs"  top: "encode1"
+  param {lr_mult: 1 decay_mult: 1}
+  param {lr_mult: 1 decay_mult: 0}
+  inner_product_param {num_output: 1000 weight_filler{type: "gaussian" std: 2.0 sparse: 500} bias_filler {type: "constant" value: 0}  }
+}
+layer {
+  name: "encode1neuron"  type: "Sigmoid"  bottom: "encode1"  top: "encode1neuron"
+}
+layer {
+  name: "encode2"  type: "InnerProduct"  bottom: "encode1neuron"  top: "encode2"
+  param {lr_mult: 1 decay_mult: 1}
+  param {lr_mult: 1 decay_mult: 0}
+  inner_product_param {num_output: 500    weight_filler {type: "gaussian"  std: 2 sparse: 250}    bias_filler {type: "constant" value: 0}  }
+}
+layer {
+  name: "encode2neuron"  type: "Sigmoid"  bottom: "encode2"  top: "encode2neuron"
+}
+layer {
+  name: "encode3"  type: "InnerProduct"  bottom: "encode2neuron"  top: "encode3"
+  param {lr_mult: 1 decay_mult: 1}
+  param {lr_mult: 1 decay_mult: 0}
+  inner_product_param {num_output: 250    weight_filler {type: "gaussian"  std: 2 sparse: 100}    bias_filler {type: "constant" value: 0}  }
+}
+layer {
+  name: "encode3neuron"  type: "Sigmoid"  bottom: "encode3"  top: "encode3neuron"
+}
+layer {
+  name: "encode3_2"  type: "InnerProduct"  bottom: "encode2neuron"  top: "encode3_2"
+  param {lr_mult: 1 decay_mult: 1}
+  param {lr_mult: 1 decay_mult: 0}
+  inner_product_param {num_output: 250    weight_filler {type: "gaussian"  std: 2 sparse: 100}    bias_filler {type: "constant" value: 0}  }
+  include {phase: TRAIN}
+}
+layer {
+  name: "encode3_2neuron"  type: "Sigmoid"  bottom: "encode3_2"  top: "encode3_2neuron"  include {phase: TRAIN}
+}
+
+# end encoder, begin VAE z definition
+
+layer {
+  name: "encode4"  type: "InnerProduct"  bottom: "encode3neuron"  top: "encode4"
+  param {lr_mult: 1     decay_mult: 1}
+  param {lr_mult: 1     decay_mult: 0}
+  inner_product_param {
+    num_output: 5 #dimension
+    weight_filler {type: "gaussian" std: 2}
+    bias_filler {type: "constant"  value: 0}
+  }
+}
+layer {
+  name: "mu"  type: "TanH"  bottom: "encode4"  top: "mu"
+}
+layer {
+  name: "logsd"  type: "InnerProduct"  bottom: "encode3_2neuron"  top: "logsd"
+  param {lr_mult: 1 decay_mult: 1}
+  param {lr_mult: 1 decay_mult: 0}
+  inner_product_param {
+    num_output: 5 #dimension
+    weight_filler {type: "gaussian" std: 0.1}
+    bias_filler {type: "constant" value: 0}
+  }
+  include {phase: TRAIN}
+}
+layer{
+  name: "sd"  type: "Exp"  bottom: "logsd"  top: "sd"  include {phase: TRAIN}
+}
+layer{
+  name: "var"  type: "Eltwise"  bottom: "sd"  bottom: "sd"  top: "var"
+  eltwise_param{operation: PROD}
+  include {phase: TRAIN}
+}
+layer{
+  name: "meansq"  type: "Eltwise"  bottom: "mu"  bottom: "mu"  top: "meansq"
+  eltwise_param{operation: PROD}
+  include { phase: TRAIN}
+}
+layer{
+  name: "kldiv_plus_half"  type: "Eltwise"  bottom: "meansq"  bottom: "var"  bottom: "logsd"  top: "kldiv_plus_half"
+  eltwise_param{operation: SUM    coeff: 0.5    coeff: 0.5    coeff: -1.0  }
+  include {phase: TRAIN}
+}
+layer {
+  name: "kldiv"  type: "Power"  bottom: "kldiv_plus_half"  top: "kldiv"
+  power_param{shift: -0.5}
+  include {phase: TRAIN}
+}
+layer{
+  name: "klloss"  type: "Reduction"  bottom: "kldiv"  top: "klloss"  include {phase: TRAIN}  loss_weight: 0.002
+}
+layer{
+  name: "noise"  type: "DummyData"  top: "noise"
+  dummy_data_param{shape {dim: 50 dim: 5}    data_filler{type: "gaussian" std: 1}  } #dimension
+  include {phase: TRAIN}
+}
+layer{
+  name: "sdnoise"  type: "Eltwise"  bottom: "noise"  bottom: "sd"  top: "sdnoise"  eltwise_param{operation: PROD}
+  include {phase: TRAIN}
+}
+layer{
+  name: "sample"  type: "Eltwise"  bottom: "mu"  bottom: "sdnoise"  top: "sample"
+  eltwise_param{operation: SUM}
+  include {phase: TRAIN}
+}
+
+# end VAE z's definition, begin decoder
+layer {
+  name: "decode5"  type: "InnerProduct"  bottom: "sample"  top: "decode5"
+  param {lr_mult: 1 decay_mult: 1}
+  param {lr_mult: 1 decay_mult: 0}
+  inner_product_param {
+    num_output: 100
+    weight_filler {type: "gaussian" std: 1 sparse: 50}
+    bias_filler {type: "constant"  value: 0}
+  }
+  include{phase: TRAIN}
+}
+layer {
+  name: "decode5"  type: "InnerProduct"  bottom: "mu"  top: "decode5"
+  inner_product_param { num_output: 100 }
+  include{phase: TEST}
+}
+layer {
+  name: "decode5neuron"  type: "Sigmoid"  bottom: "decode5"  top: "decode5neuron"
+}
+layer {
+  name: "decode4"  type: "InnerProduct"  bottom: "decode5neuron"  top: "decode4"
+  param {lr_mult: 1 decay_mult: 1}
+  param {lr_mult: 1 decay_mult: 0}
+  inner_product_param {
+    num_output: 250
+    weight_filler {type: "gaussian" std: 1 sparse: 100}
+    bias_filler {type: "constant" value: 0}
+  }
+}
+layer {
+  name: "decode4neuron"  type: "Sigmoid"  bottom: "decode4"  top: "decode4neuron"
+}
+layer {
+  name: "decode3"  type: "InnerProduct"  bottom: "decode4neuron"  top: "decode3"
+  param {lr_mult: 1 decay_mult: 1}
+  param {lr_mult: 1 decay_mult: 0}
+  inner_product_param {
+    num_output: 500
+    weight_filler {type: "gaussian" std: 1 sparse: 15}
+    bias_filler {type: "constant" value: 0}
+  }
+}
+layer {
+  name: "decode3neuron"  type: "Sigmoid"  bottom: "decode3"  top: "decode3neuron"
+}
+layer {
+  name: "decode2"  type: "InnerProduct"  bottom: "decode3neuron"  top: "decode2"
+  param {lr_mult: 1 decay_mult: 1}
+  param {lr_mult: 1 decay_mult: 0}
+  inner_product_param {
+    num_output: 1000
+    weight_filler {type: "gaussian"  std: 1 sparse: 15}
+    bias_filler {type: "constant" value: 0}
+  }
+}
+layer {
+  name: "decode2neuron"  type: "Sigmoid"  bottom: "decode2"  top: "decode2neuron"
+}
+layer {
+  name: "decode1"  type: "InnerProduct"  bottom: "decode2neuron"  top: "decode1"
+  param {lr_mult: 1 decay_mult: 1}
+  param {lr_mult: 1 decay_mult: 0}
+  inner_product_param {
+    num_output: 539
+    weight_filler {type: "gaussian" std: 1 sparse: 15}
+    bias_filler {type: "constant" value: 0}
+  }
+}
+layer {
+  name: "decode1neuron"  type: "Sigmoid"  bottom: "decode1"  top: "decode1neuron"
+}
+layer {
+  name: "loss"
+  type: "SigmoidCrossEntropyLoss"
+  bottom: "decode1"
+  bottom: "trajs"
+  top: "cross_entropy_loss"
+  loss_weight: 1
+  include {phase: TRAIN}
+}
+layer {
+  name: "loss"
+  type: "EuclideanLoss"
+  bottom: "decode1neuron"
+  bottom: "trajs"
+  top: "l2_error"
+  loss_weight: 0.02
+  include {phase: TRAIN}
+}
+
+layer {
+    name: "output" type: "Reshape" bottom: "decode1neuron" top: "output"
+    reshape_param {shape {dim: 1 dim: 1  dim: 539 dim: 1} }
+    include {phase: TEST}
+}
+layer {
+    name: "latent_var" type: "Reshape" bottom: "mu" top: "latent_var"
+    reshape_param {shape {dim: 1 dim: 1  dim: 5 dim: 1} } #dimension
+    include {phase: TEST}
+}

@@ -1,0 +1,7 @@
+#include "classifier.h"
+
+Classifier::Classifier()
+{
+	a = 0;
+}
+

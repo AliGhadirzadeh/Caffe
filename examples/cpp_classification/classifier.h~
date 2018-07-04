@@ -1,0 +1,14 @@
+#ifndef CLASSIFIER_H_
+#define CLASSIFIER_H_
+
+
+
+// class definition
+class Classifier {
+ public:
+  Classifier();
+
+ 
+};
+
+#endif
